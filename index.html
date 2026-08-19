@@ -1,0 +1,223 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>ACC Attribute Sync</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+<header class="titleblock">
+  <div class="tb-mark">
+    <span class="glyph" aria-hidden="true"></span>
+    <div>
+      <div class="title">ACC Attribute Sync</div>
+      <div class="subtitle">Docs metadata &amp; custom attributes</div>
+    </div>
+  </div>
+
+  <div class="tb-fill"></div>
+
+  <div class="tb-cell">
+    <span class="tb-label">Hub</span>
+    <span class="tb-value muted" id="tbHub">&mdash;</span>
+  </div>
+  <div class="tb-cell">
+    <span class="tb-label">Project</span>
+    <span class="tb-value muted" id="tbProject">&mdash;</span>
+  </div>
+  <div class="tb-cell">
+    <span class="tb-label">Folder</span>
+    <span class="tb-value muted" id="tbFolder">&mdash;</span>
+  </div>
+
+  <div class="tb-status">
+    <span class="status-dot" id="statusDot"></span>
+    <span class="tb-value" id="statusText">Signed out</span>
+  </div>
+
+  <div class="tb-actions">
+    <button class="ghost" id="btnSettings" title="Connection settings">Settings</button>
+    <button class="primary" id="btnSignIn">Sign in</button>
+    <button class="ghost hidden" id="btnSignOut">Sign out</button>
+  </div>
+</header>
+
+<div class="layout">
+
+  <aside class="panel sidebar">
+    <div class="panel-heading">Source</div>
+
+    <label class="field">
+      <span class="field-label">Project ID</span>
+      <input id="projectIdInput" type="text" placeholder="e.g. 422e151c-b80d-45dc-9759-...">
+    </label>
+
+    <button class="primary" id="btnConnect" style="width:100%;" disabled>Connect</button>
+
+    <div class="note small">
+      The segment right after <code>/projects/</code> in the ACC address bar &mdash; no hub ID
+      needed, this looks up which of your hubs it belongs to automatically.
+    </div>
+
+    <div class="divider-or">or paste a folder link</div>
+
+    <label class="field">
+      <span class="field-label">ACC / BIM 360 folder URL</span>
+      <div class="row">
+        <input id="folderUrlInput" type="text" placeholder="https://acc.autodesk.com/docs/files/projects/...">
+        <button id="btnLoadFolderUrl">Load</button>
+      </div>
+    </label>
+  </aside>
+
+  <main class="panel main">
+
+    <div class="note hidden" id="provisionNote">
+      <strong>Connect failed, or contents come back empty/forbidden?</strong>
+      This almost always means the hub hasn't allow-listed this app yet &mdash;
+      it isn't something signing in again fixes. See <a href="#" id="linkProvisionHelp">Settings &rsaquo; Provisioning</a>
+      for the one-line request to send whoever administers that ACC account.
+    </div>
+
+    <section class="section">
+      <div class="section-head">
+        <div class="panel-heading inline"><span class="sheet-code">SH-01</span>Contents</div>
+        <span class="count" id="fileCount">0 items</span>
+      </div>
+      <div class="breadcrumb" id="folderBreadcrumb"></div>
+      <div class="files-scroll">
+        <table class="files">
+          <thead>
+            <tr>
+              <th style="width:26px;"></th>
+              <th>Name</th>
+              <th style="width:150px;">Type</th>
+              <th style="width:140px;">Excel match</th>
+            </tr>
+          </thead>
+          <tbody id="fileTableBody">
+            <tr><td colspan="4" class="col-match match-no">Enter a Hub ID + Project ID and click Connect.</td></tr>
+          </tbody>
+        </table>
+      </div>
+
+      <div class="apply-bar">
+        <button class="ghost" id="btnDownloadAll" disabled>Download data</button>
+        <label class="checkbox-row">
+          <input type="checkbox" id="chkDownloadRecursive" checked>
+          Include subfolders
+        </label>
+        <span class="tally" id="downloadTally"></span>
+      </div>
+      <div class="note small">
+        Reads each file's current description and custom attribute values via ACC's API and
+        downloads one .xlsx with a column per attribute name it finds. With "Include subfolders"
+        checked, walks every subfolder from here down; uncheck it to export only the files
+        directly inside the current folder. Useful both as a full extract and as a template
+        &mdash; its headers are guaranteed to match your project's real attribute names.
+      </div>
+    </section>
+
+    <section class="section">
+      <div class="section-head">
+        <div class="panel-heading inline"><span class="sheet-code">SH-02</span>Match source</div>
+      </div>
+
+      <div class="dropzone" id="dropzone">
+        <div><strong>Drop an .xlsx file</strong> or click to browse</div>
+        <div style="margin-top:4px;color:var(--ink-faint);">Column A (or a "File" header) is matched to the file name &mdash; extension optional. Other headers become attributes.</div>
+      </div>
+      <input type="file" id="excelInput" accept=".xlsx,.xls" class="hidden">
+
+      <div class="excel-summary hidden" id="excelSummary">
+        <div class="path" id="excelPath"></div>
+        <div id="excelRowCount"></div>
+      </div>
+
+      <div class="apply-bar">
+        <button class="primary" id="btnApply" disabled>Apply updates</button>
+        <span class="tally" id="applyTally"></span>
+      </div>
+    </section>
+
+  </main>
+</div>
+
+<div class="console" id="console">
+  <div class="console-head" id="consoleHead">
+    <span class="eyebrow">Log</span>
+    <button class="ghost" id="btnClearLog" style="font-size:11px;padding:3px 8px;">Clear</button>
+  </div>
+  <div class="console-body" id="consoleBody"></div>
+</div>
+
+<div class="sheet-footer">
+  <span class="scale-label">Scale: NTS</span>
+  <div class="ruler" aria-hidden="true"></div>
+  <span class="sheet-count"><b id="footerItemCount">0</b> on sheet</span>
+</div>
+
+<!-- Settings modal -->
+<div class="modal-backdrop hidden" id="settingsModal">
+  <div class="modal">
+    <h2>Connection settings</h2>
+    <div class="modal-sub">Stored only in this browser (localStorage). No server involved.</div>
+
+    <label class="field">
+      <span class="field-label">APS Client ID</span>
+      <input id="clientIdInput" type="text" placeholder="Paste your APS app's Client ID">
+    </label>
+
+    <label class="field">
+      <span class="field-label">APS Client Secret (optional)</span>
+      <input id="clientSecretInput" type="password" placeholder="Leave blank to use PKCE — no secret needed">
+    </label>
+
+    <label class="field">
+      <span class="field-label">Redirect URI (must match the APS app's callback exactly)</span>
+      <input id="redirectUriInput" type="text" readonly>
+    </label>
+
+    <div class="note small">
+      Leave <strong>Client Secret</strong> blank and register the app as
+      <strong>Desktop, Mobile, Single-Page App</strong> to use PKCE &mdash; no secret, no backend,
+      a plain static page. Fill in Client Secret only if you're deliberately using a
+      <strong>Traditional Web App</strong> type instead (e.g. to reuse an app that already has
+      elevated access a fresh public-client app wouldn't have) &mdash; the secret then lives only
+      in this browser's localStorage on this machine. Scopes needed either way:
+      <strong>data:read data:write account:read</strong>.
+    </div>
+
+    <div class="note small" id="provisionHelp">
+      <strong>Provisioning (do this once per hub):</strong> APS apps only see a BIM 360 / ACC hub's data after
+      someone with Account Admin rights on <em>that</em> hub adds the Client ID above under
+      <strong>Account Admin &rsaquo; Custom Integrations &rsaquo; Add Custom Integration</strong> and enables the Docs
+      product. This is enforced by Autodesk for every auth type &mdash; there's no way around it from this app's side,
+      and your own project-edit permission doesn't grant it. It's a one-time, low-friction ask: it only allow-lists
+      the Client ID, it doesn't hand out any access beyond what you already have as a project member.
+    </div>
+
+    <div class="note small">
+      <strong>"api access deny" on Download all data?</strong> Reading current custom attribute
+      values uses a different, older BIM 360 endpoint than writing them does, and it isn't
+      enabled on every account/app the same way &mdash; it's a separate on/off switch Autodesk
+      controls, not something 3-legged vs. 2-legged sign-in changes. The tool still exports
+      name/type/description when this is blocked, just without attribute columns. If you need
+      those too, Autodesk's own guidance for this is emailing
+      <a href="mailto:bim360appsactivations@autodesk.com">bim360appsactivations@autodesk.com</a>
+      with subject "BIM 360 Docs &ndash; API Activation Request."
+    </div>
+
+    <div class="modal-actions">
+      <button class="ghost" id="btnSettingsCancel">Close</button>
+      <button class="primary" id="btnSettingsSave">Save</button>
+    </div>
+  </div>
+</div>
+
+<script src="vendor/xlsx.full.min.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
