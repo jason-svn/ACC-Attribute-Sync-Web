@@ -103,13 +103,23 @@
         </table>
       </div>
 
-      <div class="apply-bar">
-        <button class="ghost" id="btnDownloadAll" disabled>Download data</button>
+      <div class="apply-bar export-bar">
+        <button
+          class="primary export-cta"
+          id="btnDownloadAll"
+          aria-label="Export current ACC folder to Excel"
+          disabled
+        >
+          <svg class="export-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3v12m0 0 5-5m-5 5-5-5M5 20h14" />
+          </svg>
+          <span>Export to Excel</span>
+        </button>
         <label class="checkbox-row">
           <input type="checkbox" id="chkDownloadRecursive" checked>
           Include subfolders
         </label>
-        <span class="tally" id="downloadTally"></span>
+        <span class="tally" id="downloadTally">Connect to an ACC folder to enable export.</span>
       </div>
       <div class="note small">
         Reads each file's current description and custom attribute values via ACC's API and
@@ -200,7 +210,7 @@
     </div>
 
     <div class="note small">
-      <strong>"api access deny" on Download all data?</strong> Reading current custom attribute
+      <strong>"api access deny" during Export to Excel?</strong> Reading current custom attribute
       values uses a different, older BIM 360 endpoint than writing them does, and it isn't
       enabled on every account/app the same way &mdash; it's a separate on/off switch Autodesk
       controls, not something 3-legged vs. 2-legged sign-in changes. The tool still exports
