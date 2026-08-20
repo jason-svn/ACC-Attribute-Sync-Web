@@ -466,34 +466,56 @@ table.files .row-scrollarea { max-height: 340px; overflow-y: auto; display: bloc
 .apply-bar .tally b { color: var(--success); }
 .apply-bar .tally .skip { color: var(--warn); }
 
-.export-bar {
+.export-controls {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  padding: 12px 14px;
+  border: 1px solid var(--line-strong);
+  border-radius: var(--radius);
+  background: var(--bg-inset);
   flex-wrap: wrap;
 }
 
-button.export-cta {
+.export-controls button {
   display: inline-flex;
   align-items: center;
-  justify-content: center;
-  gap: 8px;
-  min-height: 42px;
-  padding: 10px 18px;
-  font-size: 14px;
-  box-shadow: 0 5px 12px rgba(15, 124, 140, 0.22);
+  gap: 7px;
 }
 
-button.export-cta:disabled {
-  opacity: 0.62;
-  box-shadow: none;
+.export-controls .tally {
+  margin-left: auto;
+  font-family: var(--mono);
+  font-size: 11px;
+  line-height: 1.45;
+  color: var(--ink-dim);
 }
 
 .export-icon {
-  width: 18px;
-  height: 18px;
+  width: 16px;
+  height: 16px;
   fill: none;
   stroke: currentColor;
   stroke-width: 2;
   stroke-linecap: round;
   stroke-linejoin: round;
+}
+
+.section-summary {
+  max-width: 84ch;
+  margin: 0 0 14px;
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.section-help {
+  max-width: 92ch;
+  margin: 12px 0 0;
+  color: var(--ink-dim);
+  font-size: 12px;
+  line-height: 1.55;
 }
 
 .note {

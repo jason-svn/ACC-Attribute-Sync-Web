@@ -102,10 +102,20 @@
           </tbody>
         </table>
       </div>
+    </section>
 
-      <div class="apply-bar export-bar">
+    <section class="section">
+      <div class="section-head">
+        <div class="panel-heading inline"><span class="sheet-code">SH-02</span>Excel Export</div>
+      </div>
+
+      <p class="section-summary">
+        Create an Excel workbook with each file's folder path, name, type, description,
+        and any custom attributes that ACC makes available.
+      </p>
+      <div class="export-controls">
         <button
-          class="primary export-cta"
+          class="primary"
           id="btnDownloadAll"
           aria-label="Export current ACC folder to Excel"
           disabled
@@ -121,18 +131,15 @@
         </label>
         <span class="tally" id="downloadTally">Connect to an ACC folder to enable export.</span>
       </div>
-      <div class="note small">
-        Reads each file's current description and custom attribute values via ACC's API and
-        downloads one .xlsx with a column per attribute name it finds. With "Include subfolders"
-        checked, walks every subfolder from here down; uncheck it to export only the files
-        directly inside the current folder. Useful both as a full extract and as a template
-        &mdash; its headers are guaranteed to match your project's real attribute names.
-      </div>
+      <p class="section-help">
+        Include subfolders to export the full folder tree, or clear it to export only the current
+        folder. The workbook can also be used as an update template with matching attribute headers.
+      </p>
     </section>
 
     <section class="section">
       <div class="section-head">
-        <div class="panel-heading inline"><span class="sheet-code">SH-02</span>Match source</div>
+        <div class="panel-heading inline"><span class="sheet-code">SH-03</span>Match source</div>
       </div>
 
       <div class="dropzone" id="dropzone">
