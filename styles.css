@@ -492,6 +492,13 @@ table.files .row-scrollarea { max-height: 340px; overflow-y: auto; display: bloc
   color: var(--ink-dim);
 }
 
+.export-filters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
+  gap: 12px;
+  margin-top: 12px;
+}
+
 .export-icon {
   width: 16px;
   height: 16px;

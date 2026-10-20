@@ -131,7 +131,27 @@
         </label>
         <span class="tally" id="downloadTally">Connect to an ACC folder to enable export.</span>
       </div>
+      <div class="export-filters">
+        <label class="field">
+          <span class="field-label">Only these file types</span>
+          <input type="text" id="filterIncludeTypes" placeholder="rvt, dwg, pdf" autocomplete="off">
+        </label>
+        <label class="field">
+          <span class="field-label">Exclude file types</span>
+          <input type="text" id="filterExcludeTypes" placeholder="bak, log" autocomplete="off">
+        </label>
+        <label class="field">
+          <span class="field-label">Name contains</span>
+          <input type="text" id="filterIncludeText" placeholder="STR, ARCH" autocomplete="off">
+        </label>
+        <label class="field">
+          <span class="field-label">Name does not contain</span>
+          <input type="text" id="filterExcludeText" placeholder="_backup, OLD" autocomplete="off">
+        </label>
+      </div>
       <p class="section-help">
+        Filters apply to the export only. Separate multiple entries with commas; matching ignores
+        case. A file must match any "contains" entry, and none of the exclusions.
         Include subfolders to export the full folder tree, or clear it to export only the current
         folder. The workbook can also be used as an update template with matching attribute headers.
       </p>
@@ -139,7 +159,7 @@
 
     <section class="section">
       <div class="section-head">
-        <div class="panel-heading inline"><span class="sheet-code">SH-03</span>Match source</div>
+        <div class="panel-heading inline"><span class="sheet-code">SH-03</span>Import from Excel &amp; Overwrite</div>
       </div>
 
       <div class="dropzone" id="dropzone">

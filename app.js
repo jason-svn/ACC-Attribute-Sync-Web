@@ -67,6 +67,26 @@ function log(message, kind) {
   body.scrollTop = body.scrollHeight;
 }
 
+// Appends many log lines in one DOM write and one scroll, instead of a layout per line.
+// Each entry is {message, kind, ts}; ts is captured when the event happened.
+function logBatch(entries) {
+  if (!entries.length) return;
+  const body = document.getElementById("consoleBody");
+  const frag = document.createDocumentFragment();
+  for (const { message, kind, ts } of entries) {
+    const line = document.createElement("div");
+    line.className = "line" + (kind ? " " + kind : "");
+    const tsEl = document.createElement("span");
+    tsEl.className = "ts";
+    tsEl.textContent = ts;
+    line.appendChild(tsEl);
+    line.appendChild(document.createTextNode(String(message)));
+    frag.appendChild(line);
+  }
+  body.appendChild(frag);
+  body.scrollTop = body.scrollHeight;
+}
+
 function escapeHtml(s) {
   return String(s == null ? "" : s)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -1128,7 +1148,7 @@ async function loadFolderFromUrl() {
  * values, exported to .xlsx.
  * ------------------------------------------------------------------- */
 
-async function crawlFolder(projectId, folder, path, out, seenFolderIds, recursive) {
+async function crawlFolder(projectId, folder, path, out, seenFolderIds, recursive, scanLog) {
   if (seenFolderIds.has(folder.id)) return; // guards against any cyclical/duplicate refs
   seenFolderIds.add(folder.id);
 
@@ -1138,13 +1158,43 @@ async function crawlFolder(projectId, folder, path, out, seenFolderIds, recursiv
   for (const f of contents.files) {
     out.push({ path: herePath, ...f });
   }
-  log(`Scanned '${herePath}' — ${contents.files.length} file(s), ${contents.folders.length} subfolder(s)` +
-    `${recursive ? "" : " (subfolders not included)"}. Total so far: ${out.length}.`);
+  // Buffered: the caller prints all scan lines in one shot once the crawl finishes.
+  scanLog.push({
+    ts: nowStamp(),
+    message: `Scanned '${herePath}' — ${contents.files.length} file(s), ${contents.folders.length} subfolder(s)` +
+      `${recursive ? "" : " (subfolders not included)"}. Total so far: ${out.length}.`,
+  });
 
   if (!recursive) return;
   for (const sub of contents.folders) {
-    await crawlFolder(projectId, sub, herePath, out, seenFolderIds, recursive);
+    await crawlFolder(projectId, sub, herePath, out, seenFolderIds, recursive, scanLog);
   }
+}
+
+function parseFilterList(value) {
+  return String(value || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
+}
+
+// Builds a predicate over a crawled file from the four filter inputs. File type is the
+// extension of the file name (".rvt" or "rvt" both accepted); text matches the whole name.
+function buildFileFilter() {
+  const incTypes = parseFilterList(el("filterIncludeTypes").value).map((t) => t.replace(/^\./, ""));
+  const excTypes = parseFilterList(el("filterExcludeTypes").value).map((t) => t.replace(/^\./, ""));
+  const incText = parseFilterList(el("filterIncludeText").value);
+  const excText = parseFilterList(el("filterExcludeText").value);
+  const active = !!(incTypes.length || excTypes.length || incText.length || excText.length);
+
+  const test = (f) => {
+    const name = String(f.displayName || "").toLowerCase();
+    const dot = name.lastIndexOf(".");
+    const ext = dot > 0 ? name.slice(dot + 1) : "";
+    if (incTypes.length && !incTypes.includes(ext)) return false;
+    if (excTypes.includes(ext)) return false;
+    if (incText.length && !incText.some((t) => name.includes(t))) return false;
+    if (excText.some((t) => name.includes(t))) return false;
+    return true;
+  };
+  return { active, test };
 }
 
 // Runs `worker` over `items` with at most `limit` in flight at once — used so a few hundred
@@ -1177,23 +1227,39 @@ async function downloadAllData() {
     const projectId = state.project.id;
     const collected = [];
     const seen = new Set();
+    const scanLog = [];
 
-    if (current.id == null) {
-      // Synthetic project-root node (has no real folder id of its own, and no files of its
-      // own either) — sweep every top folder. With subfolders excluded, that means just each
-      // top folder's own files, one level deep, rather than nothing at all.
-      for (const folder of current.folders) await crawlFolder(projectId, folder, "", collected, seen, recursive);
-    } else {
-      // A real folder — whether reached by drilling in or by pasting a folder URL, it may have
-      // files sitting directly inside it as well as subfolders, so crawl it as a single unit
-      // (its own files first, then everything beneath it) rather than skipping straight to children.
-      const startPath = state.folderStack.slice(0, -1).map((n) => n.name).join("/");
-      await crawlFolder(projectId, { id: current.id, name: current.name }, startPath, collected, seen, recursive);
+    try {
+      if (current.id == null) {
+        // Synthetic project-root node (has no real folder id of its own, and no files of its
+        // own either) — sweep every top folder. With subfolders excluded, that means just each
+        // top folder's own files, one level deep, rather than nothing at all.
+        for (const folder of current.folders) await crawlFolder(projectId, folder, "", collected, seen, recursive, scanLog);
+      } else {
+        // A real folder — whether reached by drilling in or by pasting a folder URL, it may have
+        // files sitting directly inside it as well as subfolders, so crawl it as a single unit
+        // (its own files first, then everything beneath it) rather than skipping straight to children.
+        const startPath = state.folderStack.slice(0, -1).map((n) => n.name).join("/");
+        await crawlFolder(projectId, { id: current.id, name: current.name }, startPath, collected, seen, recursive, scanLog);
+      }
+    } finally {
+      // One DOM write for the whole scan, even if the crawl failed partway.
+      logBatch(scanLog);
+    }
+
+    // Filter before the per-file description/attribute lookups so excluded files cost no API calls.
+    const filter = buildFileFilter();
+    if (filter.active) {
+      const before = collected.length;
+      const kept = collected.filter(filter.test);
+      collected.length = 0;
+      collected.push(...kept);
+      log(`Filters kept ${kept.length} of ${before} file(s).`);
     }
 
     if (!collected.length) {
-      log("No files found under this folder.", "err");
-      el("downloadTally").textContent = "No files found.";
+      log(filter.active ? "No files match the filters." : "No files found under this folder.", "err");
+      el("downloadTally").textContent = filter.active ? "No files match filters." : "No files found.";
       btn.disabled = false;
       return;
     }
