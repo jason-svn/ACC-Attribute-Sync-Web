@@ -504,6 +504,12 @@ table.files .row-scrollarea { max-height: 340px; overflow-y: auto; display: bloc
   margin-top: 12px;
 }
 
+.cache-status {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-dim);
+}
+
 .filter-save-row {
   display: flex;
   align-items: center;

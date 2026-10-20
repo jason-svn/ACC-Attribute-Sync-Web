@@ -157,6 +157,12 @@
           <input type="checkbox" id="chkDownloadRecursive" checked>
           Include subfolders
         </label>
+        <label class="checkbox-row" title="Skip re-fetching folders and files already read this session. Untick to pull fresh data from ACC.">
+          <input type="checkbox" id="chkUseCache" checked>
+          Reuse cached data
+        </label>
+        <button id="btnClearCache" type="button" title="Forget everything fetched so far this session">Clear cache</button>
+        <span class="cache-status" id="cacheStatus"></span>
         <span class="tally" id="downloadTally">Connect to an ACC folder to enable export.</span>
         <button
           class="primary"

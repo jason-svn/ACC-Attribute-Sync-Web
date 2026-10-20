@@ -998,6 +998,10 @@ async function applyUpdates() {
   if (!state.excelRows.size) { log("Load an Excel file first.", "err"); return; }
   if (!state.project) { log("Select a project first.", "err"); return; }
 
+  // This writes to ACC, so anything the export cached (descriptions/attributes) is about to go stale.
+  ExportCache.clear();
+  updateCacheStatus();
+
   const current = state.folderStack[state.folderStack.length - 1];
   const folderId = current ? current.id : null;
 
@@ -1200,6 +1204,37 @@ async function loadFolderFromUrl() {
  * values, exported to .xlsx.
  * ------------------------------------------------------------------- */
 
+// In-memory cache of what the export has already fetched (lives until the page is reloaded).
+// Always filled; only read back when `enabled` (the "Reuse cached data" checkbox). Because it
+// sits at the API-call level, changing a filter re-uses everything already fetched and only
+// fetches what's new — and an export that failed partway (e.g. rate limit) resumes from here.
+const ExportCache = {
+  enabled: true,
+  folders: new Map(),       // "projectId|folderId" -> { folders, files }
+  descriptions: new Map(),  // "projectId|itemId"   -> description string
+  attrs: new Map(),         // "projectId|itemId"   -> batch-get result, or null if none
+  folderHits: 0,
+  clear() {
+    this.folders.clear(); this.descriptions.clear(); this.attrs.clear(); this.folderHits = 0;
+  },
+};
+
+async function getFolderContentsCached(projectId, folderId) {
+  const key = `${projectId}|${folderId}`;
+  if (ExportCache.enabled && ExportCache.folders.has(key)) {
+    ExportCache.folderHits++;
+    return ExportCache.folders.get(key);
+  }
+  const contents = await Acc.getFolderContentsFull(projectId, folderId);
+  ExportCache.folders.set(key, contents);
+  return contents;
+}
+
+function updateCacheStatus() {
+  const n = ExportCache.folders.size;
+  el("cacheStatus").textContent = n ? `Cached: ${n} folder(s), ${ExportCache.descriptions.size} file detail(s)` : "";
+}
+
 // Returns true (and notes it in the scan log) when a folder is excluded by the folder-name filter.
 // Excluded folders are never opened, so everything beneath them is skipped and costs no API calls.
 function isFolderSkipped(skipFolder, folder, path, scanLog) {
@@ -1213,7 +1248,7 @@ async function crawlFolder(projectId, folder, path, out, seenFolderIds, recursiv
   if (seenFolderIds.has(folder.id)) return; // guards against any cyclical/duplicate refs
   seenFolderIds.add(folder.id);
 
-  const contents = await Acc.getFolderContentsFull(projectId, folder.id);
+  const contents = await getFolderContentsCached(projectId, folder.id);
   const herePath = path ? `${path}/${folder.name}` : folder.name;
 
   for (const f of contents.files) {
@@ -1345,6 +1380,8 @@ async function downloadAllData() {
   el("downloadTally").textContent = "Scanning...";
 
   const recursive = el("chkDownloadRecursive").checked;
+  ExportCache.enabled = el("chkUseCache").checked;
+  ExportCache.folderHits = 0;
 
   try {
     const projectId = state.project.id;
@@ -1375,6 +1412,8 @@ async function downloadAllData() {
       // Drop the animated line, then one DOM write for the whole scan, even if the crawl failed.
       stopScanAnimation();
       logBatch(scanLog);
+      if (ExportCache.folderHits) log(`${ExportCache.folderHits} folder(s) came from cache — no ACC request needed.`);
+      updateCacheStatus();
     }
 
     // Filter before the per-file description/attribute lookups so excluded files cost no API calls.
@@ -1394,27 +1433,36 @@ async function downloadAllData() {
       return;
     }
 
-    log(`Reading current descriptions for ${collected.length} file(s)...`);
+    const descKey = (id) => `${projectId}|${id}`;
+    const descTodo = collected.filter((f) => !(ExportCache.enabled && ExportCache.descriptions.has(descKey(f.id))));
+    log(`Reading current descriptions for ${descTodo.length} file(s)` +
+      `${descTodo.length < collected.length ? ` (${collected.length - descTodo.length} from cache)` : ""}...`);
     let descFailures = 0;
-    await mapWithConcurrency(collected, 6, async (f) => {
+    await mapWithConcurrency(descTodo, 6, async (f) => {
       try {
         const info = await Acc.getItemDescriptionAndTip(projectId, f.id);
-        f.description = info.description;
+        ExportCache.descriptions.set(descKey(f.id), info.description);
       } catch (e) {
         descFailures++;
       }
     });
+    for (const f of collected) f.description = ExportCache.descriptions.get(descKey(f.id)) || "";
     if (descFailures) log(`Could not read description for ${descFailures} file(s) — left blank.`, "err");
 
-    log(`Reading current custom attribute values for ${collected.length} file(s)...`);
-    let batchResults = [];
+    const attrTodo = collected.filter((f) => !(ExportCache.enabled && ExportCache.attrs.has(descKey(f.id))));
+    log(`Reading current custom attribute values for ${attrTodo.length} file(s)` +
+      `${attrTodo.length < collected.length ? ` (${collected.length - attrTodo.length} from cache)` : ""}...`);
     try {
-      batchResults = await Acc.batchGetVersionAttributes(projectId, collected.map((f) => f.id));
+      const fetched = await Acc.batchGetVersionAttributes(projectId, attrTodo.map((f) => f.id));
+      const byUrn = new Map(fetched.map((r) => [r.itemUrn, r]));
+      // Remember files with no attributes too (null), so they aren't re-requested next time.
+      for (const f of attrTodo) ExportCache.attrs.set(descKey(f.id), byUrn.get(f.id) || null);
     } catch (e) {
       log(`Custom attribute values are not readable from this app/account (${e.message}). ` +
         `Continuing with name/type/description only — see Settings for what this means.`, "err");
     }
-    const attrsByItemUrn = new Map(batchResults.map((r) => [r.itemUrn, r]));
+    const attrsByItemUrn = new Map(collected.map((f) => [f.id, ExportCache.attrs.get(descKey(f.id))]));
+    updateCacheStatus();
 
     const attrNames = new Set();
     const rows = collected.map((f) => {
@@ -1492,6 +1540,11 @@ function initEvents() {
   el("btnConnect").addEventListener("click", connect);
   el("btnLoadFolderUrl").addEventListener("click", loadFolderFromUrl);
   el("btnDownloadAll").addEventListener("click", downloadAllData);
+  el("btnClearCache").addEventListener("click", () => {
+    ExportCache.clear();
+    updateCacheStatus();
+    log("Export cache cleared.");
+  });
   el("btnSaveFilters").addEventListener("click", saveFilters);
   el("btnResetFilters").addEventListener("click", clearFilters);
   loadFilters();
