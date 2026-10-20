@@ -1320,18 +1320,23 @@ function buildFileFilter() {
   return { active, test };
 }
 
-// Saved export filters — kept in this browser's localStorage and restored on page load.
+// Saved settings (filters, project ID, folder URL, checkboxes) — kept in this browser's localStorage and restored on page load.
 const LS_FILTERS = "acc_sync.export_filters";
 const FILTER_INPUT_IDS = [
   "filterIncludeTypes", "filterExcludeTypes", "filterIncludeText", "filterExcludeText", "filterExcludeFolders",
 ];
+// Other text boxes and checkboxes saved alongside the filters. (Client ID / secret / redirect URI
+// already persist on their own via the Settings dialog.)
+const SAVED_TEXT_IDS = ["projectIdInput", "folderUrlInput"];
+const SAVED_CHECK_IDS = ["chkDownloadRecursive", "chkUseCache"];
 
 function saveFilters() {
-  const data = { recursive: el("chkDownloadRecursive").checked };
-  for (const id of FILTER_INPUT_IDS) data[id] = el(id).value;
+  const data = {};
+  for (const id of [...FILTER_INPUT_IDS, ...SAVED_TEXT_IDS]) data[id] = el(id).value;
+  for (const id of SAVED_CHECK_IDS) data[id] = el(id).checked;
   try {
     localStorage.setItem(LS_FILTERS, JSON.stringify(data));
-    el("filterSaveStatus").textContent = "Saved. These will load next time.";
+    el("filterSaveStatus").textContent = "Settings saved. They will load next time.";
   } catch (e) {
     el("filterSaveStatus").textContent = "Could not save (browser storage blocked).";
   }
@@ -1342,17 +1347,17 @@ function loadFilters() {
     const raw = localStorage.getItem(LS_FILTERS);
     if (!raw) return;
     const data = JSON.parse(raw);
-    for (const id of FILTER_INPUT_IDS) if (typeof data[id] === "string") el(id).value = data[id];
-    if (typeof data.recursive === "boolean") el("chkDownloadRecursive").checked = data.recursive;
-    el("filterSaveStatus").textContent = "Loaded saved filters.";
+    for (const id of [...FILTER_INPUT_IDS, ...SAVED_TEXT_IDS]) if (typeof data[id] === "string") el(id).value = data[id];
+    for (const id of SAVED_CHECK_IDS) if (typeof data[id] === "boolean") el(id).checked = data[id];
+    el("filterSaveStatus").textContent = "Loaded saved settings.";
   } catch (e) { /* ignore corrupt or blocked storage */ }
 }
 
-// Empties the boxes and forgets the saved set.
+// Empties the filter boxes and forgets the saved settings.
 function clearFilters() {
   for (const id of FILTER_INPUT_IDS) el(id).value = "";
   try { localStorage.removeItem(LS_FILTERS); } catch (e) { /* ignore */ }
-  el("filterSaveStatus").textContent = "Filters cleared.";
+  el("filterSaveStatus").textContent = "Filters cleared and saved settings forgotten.";
 }
 
 // Runs `worker` over `items` with at most `limit` in flight at once — used so a few hundred
