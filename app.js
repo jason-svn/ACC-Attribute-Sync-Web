@@ -1200,7 +1200,16 @@ async function loadFolderFromUrl() {
  * values, exported to .xlsx.
  * ------------------------------------------------------------------- */
 
-async function crawlFolder(projectId, folder, path, out, seenFolderIds, recursive, scanLog) {
+// Returns true (and notes it in the scan log) when a folder is excluded by the folder-name filter.
+// Excluded folders are never opened, so everything beneath them is skipped and costs no API calls.
+function isFolderSkipped(skipFolder, folder, path, scanLog) {
+  if (!skipFolder || !skipFolder(folder.name)) return false;
+  const herePath = path ? `${path}/${folder.name}` : folder.name;
+  scanLog.push({ ts: nowStamp(), message: `Skipped '${herePath}' — folder name matches the exclusion filter.` });
+  return true;
+}
+
+async function crawlFolder(projectId, folder, path, out, seenFolderIds, recursive, scanLog, skipFolder) {
   if (seenFolderIds.has(folder.id)) return; // guards against any cyclical/duplicate refs
   seenFolderIds.add(folder.id);
 
@@ -1225,8 +1234,20 @@ async function crawlFolder(projectId, folder, path, out, seenFolderIds, recursiv
 
   if (!recursive) return;
   for (const sub of contents.folders) {
-    await crawlFolder(projectId, sub, herePath, out, seenFolderIds, recursive, scanLog);
+    if (isFolderSkipped(skipFolder, sub, herePath, scanLog)) continue;
+    await crawlFolder(projectId, sub, herePath, out, seenFolderIds, recursive, scanLog, skipFolder);
   }
+}
+
+// Predicate over a folder name from the "Folder name does not contain" box (same comma = OR,
+// semicolon = AND rules as the file name boxes). Returns null when the box is empty.
+function buildFolderSkip() {
+  const groups = parseFilterGroups(el("filterExcludeFolders").value);
+  if (!groups.length) return null;
+  return (folderName) => {
+    const name = String(folderName || "").toLowerCase();
+    return groups.some((g) => g.every((t) => name.includes(t)));
+  };
 }
 
 function parseFilterList(value) {
@@ -1295,6 +1316,7 @@ async function downloadAllData() {
     const collected = [];
     const seen = new Set();
     const scanLog = [];
+    const skipFolder = buildFolderSkip();
     log("Per-folder lines print when the scan finishes; running counts show beside the Export button.");
     const stopScanAnimation = startLogAnimation("Scanning");
 
@@ -1303,13 +1325,16 @@ async function downloadAllData() {
         // Synthetic project-root node (has no real folder id of its own, and no files of its
         // own either) — sweep every top folder. With subfolders excluded, that means just each
         // top folder's own files, one level deep, rather than nothing at all.
-        for (const folder of current.folders) await crawlFolder(projectId, folder, "", collected, seen, recursive, scanLog);
+        for (const folder of current.folders) {
+          if (isFolderSkipped(skipFolder, folder, "", scanLog)) continue;
+          await crawlFolder(projectId, folder, "", collected, seen, recursive, scanLog, skipFolder);
+        }
       } else {
         // A real folder — whether reached by drilling in or by pasting a folder URL, it may have
         // files sitting directly inside it as well as subfolders, so crawl it as a single unit
         // (its own files first, then everything beneath it) rather than skipping straight to children.
         const startPath = state.folderStack.slice(0, -1).map((n) => n.name).join("/");
-        await crawlFolder(projectId, { id: current.id, name: current.name }, startPath, collected, seen, recursive, scanLog);
+        await crawlFolder(projectId, { id: current.id, name: current.name }, startPath, collected, seen, recursive, scanLog, skipFolder);
       }
     } finally {
       // Drop the animated line, then one DOM write for the whole scan, even if the crawl failed.

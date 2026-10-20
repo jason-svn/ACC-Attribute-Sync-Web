@@ -130,12 +130,17 @@
           <span class="field-label">Name does not contain</span>
           <input type="text" id="filterExcludeText" placeholder="_backup, OLD" autocomplete="off">
         </label>
+        <label class="field">
+          <span class="field-label">Folder name does not contain</span>
+          <input type="text" id="filterExcludeFolders" placeholder="Archive, Superseded; Old" autocomplete="off">
+        </label>
       </div>
       <ul class="filter-help">
         <li><b>Comma = OR.</b> <code>ARC, M3D</code> &rarr; name has ARC <em>or</em> M3D.</li>
         <li><b>Semicolon = AND.</b> <code>ARC; M3D</code> &rarr; name has ARC <em>and</em> M3D.</li>
         <li>Combine them: <code>ARC; M3D, STR</code> &rarr; (ARC and M3D) or STR.</li>
         <li>File types only use commas: <code>rvt, dwg</code>. Not case-sensitive. Leave a box empty to skip it.</li>
+        <li>Folder filter: a matching folder is skipped with everything inside it (subfolders too), so it also saves time. The same comma / semicolon rules apply.</li>
         <li>Filters apply to the export only.</li>
       </ul>
       <p class="section-help">
