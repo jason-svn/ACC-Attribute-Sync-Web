@@ -113,24 +113,6 @@
         Create an Excel workbook with each file's folder path, name, type, description,
         and any custom attributes that ACC makes available.
       </p>
-      <div class="export-controls">
-        <button
-          class="primary"
-          id="btnDownloadAll"
-          aria-label="Export current ACC folder to Excel"
-          disabled
-        >
-          <svg class="export-icon" viewBox="0 0 24 24" aria-hidden="true">
-            <path d="M12 3v12m0 0 5-5m-5 5-5-5M5 20h14" />
-          </svg>
-          <span>Export to Excel</span>
-        </button>
-        <label class="checkbox-row">
-          <input type="checkbox" id="chkDownloadRecursive" checked>
-          Include subfolders
-        </label>
-        <span class="tally" id="downloadTally">Connect to an ACC folder to enable export.</span>
-      </div>
       <div class="export-filters">
         <label class="field">
           <span class="field-label">Only these file types</span>
@@ -160,6 +142,24 @@
         Include subfolders to export the full folder tree, or clear it to export only the current
         folder. The workbook can also be used as an update template with matching attribute headers.
       </p>
+      <div class="export-controls">
+        <label class="checkbox-row">
+          <input type="checkbox" id="chkDownloadRecursive" checked>
+          Include subfolders
+        </label>
+        <span class="tally" id="downloadTally">Connect to an ACC folder to enable export.</span>
+        <button
+          class="primary"
+          id="btnDownloadAll"
+          aria-label="Export current ACC folder to Excel"
+          disabled
+        >
+          <svg class="export-icon" viewBox="0 0 24 24" aria-hidden="true">
+            <path d="M12 3v12m0 0 5-5m-5 5-5-5M5 20h14" />
+          </svg>
+          <span>Export to Excel</span>
+        </button>
+      </div>
     </section>
 
     <section class="section">
