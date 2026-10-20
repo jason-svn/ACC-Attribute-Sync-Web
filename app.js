@@ -1285,6 +1285,41 @@ function buildFileFilter() {
   return { active, test };
 }
 
+// Saved export filters — kept in this browser's localStorage and restored on page load.
+const LS_FILTERS = "acc_sync.export_filters";
+const FILTER_INPUT_IDS = [
+  "filterIncludeTypes", "filterExcludeTypes", "filterIncludeText", "filterExcludeText", "filterExcludeFolders",
+];
+
+function saveFilters() {
+  const data = { recursive: el("chkDownloadRecursive").checked };
+  for (const id of FILTER_INPUT_IDS) data[id] = el(id).value;
+  try {
+    localStorage.setItem(LS_FILTERS, JSON.stringify(data));
+    el("filterSaveStatus").textContent = "Saved. These will load next time.";
+  } catch (e) {
+    el("filterSaveStatus").textContent = "Could not save (browser storage blocked).";
+  }
+}
+
+function loadFilters() {
+  try {
+    const raw = localStorage.getItem(LS_FILTERS);
+    if (!raw) return;
+    const data = JSON.parse(raw);
+    for (const id of FILTER_INPUT_IDS) if (typeof data[id] === "string") el(id).value = data[id];
+    if (typeof data.recursive === "boolean") el("chkDownloadRecursive").checked = data.recursive;
+    el("filterSaveStatus").textContent = "Loaded saved filters.";
+  } catch (e) { /* ignore corrupt or blocked storage */ }
+}
+
+// Empties the boxes and forgets the saved set.
+function clearFilters() {
+  for (const id of FILTER_INPUT_IDS) el(id).value = "";
+  try { localStorage.removeItem(LS_FILTERS); } catch (e) { /* ignore */ }
+  el("filterSaveStatus").textContent = "Filters cleared.";
+}
+
 // Runs `worker` over `items` with at most `limit` in flight at once — used so a few hundred
 // per-file detail lookups don't run fully sequentially, without hammering the API unbounded.
 async function mapWithConcurrency(items, limit, worker) {
@@ -1457,6 +1492,9 @@ function initEvents() {
   el("btnConnect").addEventListener("click", connect);
   el("btnLoadFolderUrl").addEventListener("click", loadFolderFromUrl);
   el("btnDownloadAll").addEventListener("click", downloadAllData);
+  el("btnSaveFilters").addEventListener("click", saveFilters);
+  el("btnResetFilters").addEventListener("click", clearFilters);
+  loadFilters();
 
   const dropzone = el("dropzone");
   const excelInput = el("excelInput");

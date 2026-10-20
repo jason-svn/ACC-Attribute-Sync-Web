@@ -135,6 +135,11 @@
           <input type="text" id="filterExcludeFolders" placeholder="Archive, Superseded; Old" autocomplete="off">
         </label>
       </div>
+      <div class="filter-save-row">
+        <button id="btnSaveFilters" type="button">Save filters</button>
+        <button id="btnResetFilters" type="button">Clear filters</button>
+        <span class="tally" id="filterSaveStatus"></span>
+      </div>
       <ul class="filter-help">
         <li><b>Comma = OR.</b> <code>ARC, M3D</code> &rarr; name has ARC <em>or</em> M3D.</li>
         <li><b>Semicolon = AND.</b> <code>ARC; M3D</code> &rarr; name has ARC <em>and</em> M3D.</li>

@@ -504,6 +504,20 @@ table.files .row-scrollarea { max-height: 340px; overflow-y: auto; display: bloc
   margin-top: 12px;
 }
 
+.filter-save-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 12px;
+  flex-wrap: wrap;
+}
+
+.filter-save-row .tally {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ink-dim);
+}
+
 .filter-help {
   margin: 12px 0 0;
   padding-left: 18px;
