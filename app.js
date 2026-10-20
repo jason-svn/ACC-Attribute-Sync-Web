@@ -159,20 +159,29 @@ const Settings = {
 };
 
 /* ---------------------------------------------------------------------
- * Auth session (kept in sessionStorage — cleared when the tab closes)
+ * Auth session (kept in localStorage — persists until Sign out)
  * ------------------------------------------------------------------- */
 
 const Session = {
   data: null,
   load() {
     try {
-      const raw = sessionStorage.getItem(SS_SESSION);
+      // Persisted in localStorage so sign-in survives closing the tab/browser; the refresh token
+      // renews the access token silently. Falls back to a pre-existing sessionStorage session.
+      const raw = localStorage.getItem(SS_SESSION) || sessionStorage.getItem(SS_SESSION);
       this.data = raw ? JSON.parse(raw) : null;
     } catch (e) { this.data = null; }
     return this.data;
   },
-  save() { sessionStorage.setItem(SS_SESSION, JSON.stringify(this.data)); },
-  clear() { this.data = null; sessionStorage.removeItem(SS_SESSION); },
+  save() {
+    try { localStorage.setItem(SS_SESSION, JSON.stringify(this.data)); } catch (e) { /* storage blocked */ }
+    try { sessionStorage.removeItem(SS_SESSION); } catch (e) { /* ignore */ }
+  },
+  clear() {
+    this.data = null;
+    try { localStorage.removeItem(SS_SESSION); } catch (e) { /* ignore */ }
+    try { sessionStorage.removeItem(SS_SESSION); } catch (e) { /* ignore */ }
+  },
   set(tokenResponse) {
     const expiresIn = Number(tokenResponse.expires_in) || 3000;
     this.data = {
@@ -346,8 +355,23 @@ async function apiFetch(method, url, body, contentType) {
   };
   if (contentType) headers["Content-Type"] = contentType;
 
-  const resp = await fetch(url, { method, headers, body: body || undefined });
-  const text = await resp.text();
+  // APS rate-limits per app (HTTP 429, "Quota limit exceeded"). A big crawl will hit it, so wait
+  // and retry rather than failing the whole job. Retry-After isn't always readable cross-origin,
+  // so fall back to exponential backoff.
+  const MAX_RETRIES = 6;
+  let resp, text;
+  for (let attempt = 0; ; attempt++) {
+    resp = await fetch(url, { method, headers, body: body || undefined });
+    text = await resp.text();
+    const throttled = resp.status === 429 || (!resp.ok && /quota limit exceeded/i.test(text));
+    if (!throttled || attempt >= MAX_RETRIES) break;
+    const retryAfter = Number(resp.headers.get("Retry-After"));
+    const waitSec = retryAfter > 0 ? retryAfter : Math.min(60, 5 * 2 ** attempt);
+    log(`Rate limited by Autodesk — waiting ${waitSec}s before retry ${attempt + 1}/${MAX_RETRIES}...`, "err");
+    await new Promise((r) => setTimeout(r, waitSec * 1000));
+    await Auth.ensureToken();
+    headers.Authorization = "Bearer " + Session.data.access_token;
+  }
   if (!resp.ok) {
     let message = text;
     try {
@@ -1175,14 +1199,23 @@ function parseFilterList(value) {
   return String(value || "").split(",").map((s) => s.trim().toLowerCase()).filter(Boolean);
 }
 
+// "ARC; M3D, STR" -> [["arc","m3d"],["str"]]: comma separates OR groups, semicolon ANDs terms in a group.
+function parseFilterGroups(value) {
+  return String(value || "").split(",")
+    .map((g) => g.split(";").map((s) => s.trim().toLowerCase()).filter(Boolean))
+    .filter((g) => g.length);
+}
+
 // Builds a predicate over a crawled file from the four filter inputs. File type is the
 // extension of the file name (".rvt" or "rvt" both accepted); text matches the whole name.
 function buildFileFilter() {
   const incTypes = parseFilterList(el("filterIncludeTypes").value).map((t) => t.replace(/^\./, ""));
   const excTypes = parseFilterList(el("filterExcludeTypes").value).map((t) => t.replace(/^\./, ""));
-  const incText = parseFilterList(el("filterIncludeText").value);
-  const excText = parseFilterList(el("filterExcludeText").value);
+  const incText = parseFilterGroups(el("filterIncludeText").value);
+  const excText = parseFilterGroups(el("filterExcludeText").value);
   const active = !!(incTypes.length || excTypes.length || incText.length || excText.length);
+  // A group (terms joined by ";") matches when the name contains every term in it.
+  const groupMatches = (name, group) => group.every((t) => name.includes(t));
 
   const test = (f) => {
     const name = String(f.displayName || "").toLowerCase();
@@ -1190,8 +1223,8 @@ function buildFileFilter() {
     const ext = dot > 0 ? name.slice(dot + 1) : "";
     if (incTypes.length && !incTypes.includes(ext)) return false;
     if (excTypes.includes(ext)) return false;
-    if (incText.length && !incText.some((t) => name.includes(t))) return false;
-    if (excText.some((t) => name.includes(t))) return false;
+    if (incText.length && !incText.some((g) => groupMatches(name, g))) return false;
+    if (excText.some((g) => groupMatches(name, g))) return false;
     return true;
   };
   return { active, test };

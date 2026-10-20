@@ -499,6 +499,25 @@ table.files .row-scrollarea { max-height: 340px; overflow-y: auto; display: bloc
   margin-top: 12px;
 }
 
+.filter-help {
+  margin: 12px 0 0;
+  padding-left: 18px;
+  color: var(--ink-dim);
+  font-size: 12px;
+  line-height: 1.7;
+}
+
+.filter-help b { color: var(--ink); }
+
+.filter-help code {
+  font-family: var(--mono);
+  padding: 1px 5px;
+  border-radius: 3px;
+  background: var(--bg-inset);
+  border: 1px solid var(--line-strong);
+  color: var(--ink);
+}
+
 .export-icon {
   width: 16px;
   height: 16px;

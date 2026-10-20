@@ -68,7 +68,7 @@ Open the app, click **Settings**, and enter:
   you registered as the callback URL in the APS app.
 
 Settings are stored in `localStorage` in your own browser only. The access/refresh token pair
-is kept in `sessionStorage` (cleared when the tab closes) — nothing is sent anywhere except
+is kept in `localStorage` so you stay signed in across visits until you click **Sign out** — nothing is sent anywhere except
 Autodesk's own endpoints.
 
 ## 4. Sign in and provision
