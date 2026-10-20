@@ -358,7 +358,9 @@ async function apiFetch(method, url, body, contentType) {
   // APS rate-limits per app (HTTP 429, "Quota limit exceeded"). A big crawl will hit it, so wait
   // and retry rather than failing the whole job. Retry-After isn't always readable cross-origin,
   // so fall back to exponential backoff.
-  const MAX_RETRIES = 6;
+  // Up to ~30 minutes of waiting in total (waits cap at 60s), so a long export pauses through
+  // the limit window and resumes on its own instead of failing.
+  const MAX_RETRIES = 30;
   let resp, text;
   for (let attempt = 0; ; attempt++) {
     resp = await fetch(url, { method, headers, body: body || undefined });
@@ -366,7 +368,7 @@ async function apiFetch(method, url, body, contentType) {
     const throttled = resp.status === 429 || (!resp.ok && /quota limit exceeded/i.test(text));
     if (!throttled || attempt >= MAX_RETRIES) break;
     const retryAfter = Number(resp.headers.get("Retry-After"));
-    const waitSec = retryAfter > 0 ? retryAfter : Math.min(60, 5 * 2 ** attempt);
+    const waitSec = retryAfter > 0 ? retryAfter : Math.min(60, 10 * 2 ** attempt);
     log(`Rate limited by Autodesk — waiting ${waitSec}s before retry ${attempt + 1}/${MAX_RETRIES}...`, "err");
     await new Promise((r) => setTimeout(r, waitSec * 1000));
     await Auth.ensureToken();
