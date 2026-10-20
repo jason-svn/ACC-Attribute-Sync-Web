@@ -87,6 +87,32 @@ function logBatch(entries) {
   body.scrollTop = body.scrollHeight;
 }
 
+// Adds a log line that cycles "Scanning." -> "Scanning.." ... up to 10 dots, then restarts, on a
+// timer, purely as a "still alive" cue (not tied to real progress). Returns stop(), which removes it.
+function startLogAnimation(label) {
+  const body = document.getElementById("consoleBody");
+  const line = document.createElement("div");
+  line.className = "line";
+  const ts = document.createElement("span");
+  ts.className = "ts";
+  ts.textContent = nowStamp();
+  const text = document.createTextNode(label + ".");
+  line.appendChild(ts);
+  line.appendChild(text);
+  body.appendChild(line);
+  body.scrollTop = body.scrollHeight;
+  const MAX_DOTS = 10;
+  let dots = 1;
+  const timer = setInterval(() => {
+    dots = dots % MAX_DOTS + 1;
+    text.nodeValue = label + ".".repeat(dots);
+  }, 600);
+  return function stop() {
+    clearInterval(timer);
+    line.remove();
+  };
+}
+
 function escapeHtml(s) {
   return String(s == null ? "" : s)
     .replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -1184,7 +1210,13 @@ async function crawlFolder(projectId, folder, path, out, seenFolderIds, recursiv
   for (const f of contents.files) {
     out.push({ path: herePath, ...f });
   }
-  // Buffered: the caller prints all scan lines in one shot once the crawl finishes.
+  // Buffered: the caller prints all scan lines in one shot once the crawl finishes. Live
+  // progress goes to the tally label instead (a single small text node, cheap to update).
+  const nowMs = Date.now();
+  if (nowMs - (crawlFolder.lastTally || 0) > 250) {
+    crawlFolder.lastTally = nowMs;
+    el("downloadTally").textContent = `Scanning... ${scanLog.length + 1} folder(s), ${out.length} file(s) so far`;
+  }
   scanLog.push({
     ts: nowStamp(),
     message: `Scanned '${herePath}' — ${contents.files.length} file(s), ${contents.folders.length} subfolder(s)` +
@@ -1263,6 +1295,8 @@ async function downloadAllData() {
     const collected = [];
     const seen = new Set();
     const scanLog = [];
+    log("Per-folder lines print when the scan finishes; running counts show beside the Export button.");
+    const stopScanAnimation = startLogAnimation("Scanning");
 
     try {
       if (current.id == null) {
@@ -1278,7 +1312,8 @@ async function downloadAllData() {
         await crawlFolder(projectId, { id: current.id, name: current.name }, startPath, collected, seen, recursive, scanLog);
       }
     } finally {
-      // One DOM write for the whole scan, even if the crawl failed partway.
+      // Drop the animated line, then one DOM write for the whole scan, even if the crawl failed.
+      stopScanAnimation();
       logBatch(scanLog);
     }
 
